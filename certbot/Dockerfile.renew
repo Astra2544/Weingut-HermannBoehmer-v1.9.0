@@ -1,0 +1,9 @@
+FROM certbot/certbot:latest
+
+# Docker CLI installieren für nginx reload
+RUN apk add --no-cache docker-cli
+
+COPY renew-entrypoint.sh /renew-entrypoint.sh
+RUN chmod +x /renew-entrypoint.sh
+
+ENTRYPOINT ["/renew-entrypoint.sh"]

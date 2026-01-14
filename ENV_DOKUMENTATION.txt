@@ -1,0 +1,281 @@
+# ============================================================
+#  HERMANN BÖHMER SHOP - ALLE ENVIRONMENT VARIABLEN
+# ============================================================
+#
+#  Diese Datei erklärt JEDE Variable im Detail!
+#
+# ============================================================
+
+
+# ====================================================================================
+#  PORTS
+# ====================================================================================
+
+FRONTEND_PORT=3180
+# Was: Der Port auf dem die Website läuft
+# Beispiel: https://hermann-boehmer.com läuft intern auf Port 3180
+# Standard: 3180
+
+BACKEND_PORT=8180
+# Was: Der Port auf dem die API/Backend läuft
+# Beispiel: https://api.hermann-boehmer.com läuft intern auf Port 8180
+# Standard: 8180
+
+DB_EXTERNAL_PORT=5580
+# Was: Der Port für externen Datenbank-Zugriff
+# Wofür: Wenn du dich von deinem PC mit DBeaver/pgAdmin verbinden willst
+# Standard: 5580
+
+
+# ====================================================================================
+#  DATENBANK (PostgreSQL)
+# ====================================================================================
+
+DB_NAME=hermann_boehmer_shop
+# Was: Name deiner Datenbank
+# Standard: hermann_boehmer_shop
+
+DB_USER=boehmer_admin
+# Was: Benutzername für die Datenbank
+# Standard: boehmer_admin
+
+DB_PASSWORD=DEIN_SICHERES_PASSWORT
+# Was: Passwort für die Datenbank
+# WICHTIG: Unbedingt ändern! Mindestens 16 Zeichen empfohlen
+# Generieren mit: openssl rand -base64 24
+# Beispiel: K7xP2mN9qR4sT6vW8yB3cF5h
+
+
+# ====================================================================================
+#  ADMIN ZUGANG (Zum Einloggen ins Dashboard)
+# ====================================================================================
+
+INITIAL_ADMIN_EMAIL=admin@deine-domain.com
+# Was: E-Mail Adresse für den ERSTEN Admin
+# Wofür: Damit loggst du dich unter /admin ein
+# WICHTIG: Wird nur beim ERSTEN Start erstellt!
+
+INITIAL_ADMIN_PASSWORD=DEIN_ADMIN_PASSWORT
+# Was: Passwort für den ERSTEN Admin
+# Wofür: Damit loggst du dich unter /admin ein
+# WICHTIG: Wähle ein sicheres Passwort! Mindestens 12 Zeichen
+
+
+# ====================================================================================
+#  SICHERHEIT (Geheime Schlüssel)
+# ====================================================================================
+
+JWT_SECRET=LANGER_ZUFAELLIGER_TEXT_HIER
+# Was: Geheimer Schlüssel für Login-Tokens
+# Wofür: Verschlüsselt die "Ausweise" der eingeloggten Benutzer
+# WICHTIG: Mindestens 32 Zeichen! Niemals teilen!
+# Generieren mit: openssl rand -hex 32
+# Beispiel: 8f4a2b6c9d1e3f5a7b8c0d2e4f6a8b0c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a
+
+ADMIN_SECRET=GEHEIMER_REGISTRIERUNGS_CODE
+# Was: Geheim-Code um NEUE Admin-Accounts zu erstellen
+# Wofür: Verhindert dass Fremde sich als Admin registrieren
+# WICHTIG: Nur du solltest diesen Code kennen!
+# Generieren mit: openssl rand -hex 16
+# Beispiel: a1b2c3d4e5f6g7h8
+
+
+# ====================================================================================
+#  STRIPE (Zahlungen)
+# ====================================================================================
+
+STRIPE_API_KEY=sk_live_XXXX
+# Was: Dein Stripe SECRET Key (beginnt mit sk_live_ oder sk_test_)
+# Woher: https://dashboard.stripe.com/apikeys
+# WICHTIG: NIEMALS öffentlich teilen! Das ist wie ein Passwort!
+
+REACT_APP_STRIPE_PUBLISHABLE_KEY=pk_live_XXXX
+# Was: Dein Stripe PUBLIC Key (beginnt mit pk_live_ oder pk_test_)
+# Woher: https://dashboard.stripe.com/apikeys
+# Info: Dieser darf öffentlich sein (wird im Browser verwendet)
+
+
+# ====================================================================================
+#  URLs (Deine Domain)
+# ====================================================================================
+
+REACT_APP_BACKEND_URL=https://api.deine-domain.com
+# Was: Die URL unter der das Backend/API erreichbar ist
+# Wofür: Das Frontend muss wissen wo die API ist
+# Beispiel: https://api.hermann-boehmer.com
+
+FRONTEND_URL=https://deine-domain.com
+# Was: Die URL deiner Website
+# Wofür: Für Links in E-Mails, Weiterleitungen, etc.
+# Beispiel: https://hermann-boehmer.com
+
+
+# ====================================================================================
+#  CORS (Cross-Origin Resource Sharing)
+# ====================================================================================
+
+CORS_ORIGINS=*
+# Was: Welche Domains auf die API zugreifen dürfen
+# Standard: * (alle erlaubt)
+# Sicherer: https://hermann-boehmer.com,https://www.hermann-boehmer.com
+
+
+# ====================================================================================
+#  E-MAIL SMTP (Ausgehende E-Mails)
+# ====================================================================================
+
+SMTP_HOST=smtp.hostinger.com
+# Was: Der SMTP-Server deines E-Mail Providers
+# Beispiele: smtp.hostinger.com, smtp.gmail.com, smtp.ionos.de
+
+SMTP_PORT=465
+# Was: Der Port des SMTP-Servers
+# Standard: 465 (SSL) oder 587 (TLS)
+
+SMTP_USE_TLS=true
+# Was: Verschlüsselte Verbindung verwenden
+# Standard: true (immer empfohlen!)
+
+SMTP_USER=info@deine-domain.com
+# Was: Der Benutzername für den E-Mail Login
+# Meist: Deine E-Mail Adresse
+
+SMTP_PASSWORD=DEIN_EMAIL_PASSWORT
+# Was: Das Passwort für den E-Mail Login
+# WICHTIG: Bei Gmail brauchst du ein "App-Passwort"!
+
+SENDER_EMAIL=info@deine-domain.com
+# Was: Die Absender-Adresse für E-Mails
+# Beispiel: info@hermann-boehmer.com
+
+SENDER_NAME=Hermann Böhmer Wachauer Gold
+# Was: Der Absender-Name der in E-Mails angezeigt wird
+# Beispiel: "Hermann Böhmer Wachauer Gold"
+
+
+# ====================================================================================
+#  E-MAIL IMAP (Eingehende E-Mails - für Admin Posteingang)
+# ====================================================================================
+
+IMAP_HOST=imap.hostinger.com
+# Was: Der IMAP-Server deines E-Mail Providers
+# Beispiele: imap.hostinger.com, imap.gmail.com
+
+IMAP_PORT=993
+# Was: Der Port des IMAP-Servers
+# Standard: 993 (SSL)
+
+IMAP_USE_SSL=true
+# Was: Verschlüsselte Verbindung verwenden
+# Standard: true
+
+
+# ====================================================================================
+#  KONTAKT E-MAIL (Für Kontaktformular)
+# ====================================================================================
+
+CONTACT_EMAIL=info@deine-domain.com
+# Was: E-Mail Adresse die Kontaktformular-Nachrichten empfängt
+
+CONTACT_EMAIL_PASSWORD=DEIN_PASSWORT
+# Was: Passwort für diese E-Mail
+
+CONTACT_EMAIL_NAME=Hermann Böhmer Kundenservice
+# Was: Anzeigename für diese E-Mail
+
+
+# ====================================================================================
+#  NEWSLETTER E-MAIL
+# ====================================================================================
+
+NEWSLETTER_EMAIL=news@deine-domain.com
+# Was: E-Mail Adresse für Newsletter-Versand
+
+NEWSLETTER_EMAIL_PASSWORD=DEIN_PASSWORT
+# Was: Passwort für diese E-Mail
+
+NEWSLETTER_EMAIL_NAME=Hermann Böhmer Newsletter
+# Was: Anzeigename für Newsletter
+
+
+# ====================================================================================
+#  ADMIN E-MAIL (Für Benachrichtigungen)
+# ====================================================================================
+
+ADMIN_EMAIL=admin@deine-domain.com
+# Was: E-Mail Adresse für Admin-Benachrichtigungen
+# Wofür: Erhält Benachrichtigungen über neue Bestellungen etc.
+
+ADMIN_EMAIL_PASSWORD=DEIN_PASSWORT
+# Was: Passwort für diese E-Mail
+
+
+# ====================================================================================
+#  TELEGRAM BOT (Optional)
+# ====================================================================================
+
+TELEGRAM_BOT_TOKEN=
+# Was: Token deines Telegram Bots
+# Woher: Erstelle einen Bot bei @BotFather auf Telegram
+# Optional: Leer lassen wenn nicht benötigt
+
+TELEGRAM_CHANNEL_ID=
+# Was: ID des Telegram-Kanals für Benachrichtigungen
+# Optional: Leer lassen wenn nicht benötigt
+
+
+# ====================================================================================
+#  BENACHRICHTIGUNGEN
+# ====================================================================================
+
+NOTIFICATION_RECIPIENTS=admin@deine-domain.com
+# Was: E-Mail Adressen die Benachrichtigungen erhalten
+# Format: Komma-getrennt für mehrere
+# Beispiel: admin@domain.com,chef@domain.com
+
+NOTIFY_NEW_ORDER=true
+# Was: Benachrichtigung bei neuer Bestellung
+# Werte: true / false
+
+NOTIFY_LOW_STOCK=true
+# Was: Benachrichtigung wenn Lagerbestand niedrig
+# Werte: true / false
+
+NOTIFY_CONTACT_FORM=true
+# Was: Benachrichtigung bei Kontaktformular-Nachricht
+# Werte: true / false
+
+NOTIFY_NEW_CUSTOMER=true
+# Was: Benachrichtigung bei neuer Kundenregistrierung
+# Werte: true / false
+
+NOTIFY_NEWSLETTER_SIGNUP=true
+# Was: Benachrichtigung bei Newsletter-Anmeldung
+# Werte: true / false
+
+NOTIFY_OUT_OF_STOCK=true
+# Was: Benachrichtigung wenn Produkt ausverkauft
+# Werte: true / false
+
+NOTIFY_COUPON_USED=true
+# Was: Benachrichtigung wenn Gutschein verwendet wird
+# Werte: true / false
+
+NOTIFY_DAILY_SUMMARY=true
+# Was: Tägliche Zusammenfassung per E-Mail
+# Werte: true / false
+
+
+# ====================================================================================
+#  WEITERE EINSTELLUNGEN
+# ====================================================================================
+
+REACT_APP_UNDER_CONSTRUCTION=false
+# Was: Wartungsmodus aktivieren
+# Werte: true = "Coming Soon" Seite anzeigen
+#        false = Normale Website
+
+
+# ============================================================
+#  ENDE - Bei Fragen: info@hermann-boehmer.com
+# ============================================================

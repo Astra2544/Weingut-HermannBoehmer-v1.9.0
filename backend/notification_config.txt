@@ -1,0 +1,129 @@
+# ========================================
+# BENACHRICHTIGUNGS-KONFIGURATION
+# Hermann Böhmer Online-Shop
+# ========================================
+#
+# Diese Datei erklärt alle Benachrichtigungs-Einstellungen
+# in der .env Datei (/app/backend/.env)
+#
+# ========================================
+
+## TELEGRAM EINRICHTEN (Schritt für Schritt)
+
+### 1. Bot erstellen
+   1. Öffne Telegram und suche nach @BotFather
+   2. Sende /newbot
+   3. Wähle einen Namen (z.B. "Hermann Böhmer Shop")
+   4. Wähle einen Username (z.B. "HermannBoehmerBot")
+   5. Kopiere den TOKEN (sieht aus wie: 123456789:ABCdefGHI...)
+
+### 2. Channel/Gruppe erstellen
+   1. Erstelle einen neuen Channel oder Gruppe
+   2. Gehe zu Einstellungen → Administratoren
+   3. Füge deinen Bot als Administrator hinzu
+   4. Aktiviere "Nachrichten posten"
+
+### 3. Channel ID finden
+   1. Sende eine Nachricht in den Channel
+   2. Öffne im Browser: https://api.telegram.org/bot<DEIN_TOKEN>/getUpdates
+   3. Suche nach "chat":{"id":-100... 
+   4. Die Zahl (inkl. -100) ist deine Channel ID
+
+### 4. In .env eintragen
+   TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+   TELEGRAM_CHANNEL_ID=-1001234567890
+
+## E-MAIL EMPFÄNGER
+
+NOTIFICATION_RECIPIENTS
+- Komma-getrennte Liste von E-Mail-Adressen
+- Diese erhalten alle Admin-Benachrichtigungen
+- Beispiel: admin@domain.com,chef@domain.com,info@domain.com
+
+ADMIN_EMAIL / ADMIN_EMAIL_PASSWORD
+- Der E-Mail-Account, VON dem gesendet wird
+- Muss ein gültiger E-Mail-Account sein (z.B. admin@hermann-boehmer.com)
+
+## BENACHRICHTIGUNGS-SCHALTER
+
+Alle Schalter können auf "true" (aktiviert) oder "false" (deaktiviert) gesetzt werden.
+
+┌─────────────────────────┬─────────────────────────────────────────────────────────┐
+│ Variable                │ Beschreibung                                            │
+├─────────────────────────┼─────────────────────────────────────────────────────────┤
+│ NOTIFY_NEW_ORDER        │ 🛒 Bei jeder neuen bezahlten Bestellung                 │
+│                         │ → Enthält: Kunde, Produkte, Summe, Lieferadresse        │
+├─────────────────────────┼─────────────────────────────────────────────────────────┤
+│ NOTIFY_LOW_STOCK        │ ⚠️ Wenn ein Produkt unter 10 Stück fällt               │
+│                         │ → Wird nach jeder Bestellung automatisch geprüft        │
+├─────────────────────────┼─────────────────────────────────────────────────────────┤
+│ NOTIFY_OUT_OF_STOCK     │ 🚨 Wenn ein Produkt komplett ausverkauft ist (0 Stück)  │
+│                         │ → Dringender als LOW_STOCK, separate Benachrichtigung   │
+├─────────────────────────┼─────────────────────────────────────────────────────────┤
+│ NOTIFY_CONTACT_FORM     │ 📧 Bei neuer Kontaktanfrage über das Kontaktformular    │
+│                         │ → Enthält: Name, E-Mail, Nachricht                      │
+├─────────────────────────┼─────────────────────────────────────────────────────────┤
+│ NOTIFY_NEW_CUSTOMER     │ 👤 Bei Neuregistrierung eines Kunden                    │
+│                         │ → Enthält: Name, E-Mail                                 │
+├─────────────────────────┼─────────────────────────────────────────────────────────┤
+│ NOTIFY_NEWSLETTER_SIGNUP│ 📰 Bei Newsletter-Anmeldung                             │
+│                         │ → Enthält: E-Mail-Adresse, Quelle                       │
+├─────────────────────────┼─────────────────────────────────────────────────────────┤
+│ NOTIFY_COUPON_USED      │ 🎁 Wenn ein Gutscheincode eingelöst wird                │
+│                         │ → Enthält: Code, Rabatt, Kunde, Bestellsumme            │
+├─────────────────────────┼─────────────────────────────────────────────────────────┤
+│ NOTIFY_DAILY_SUMMARY    │ 📊 Tägliche Zusammenfassung (geplant für 20:00)         │
+│                         │ → Enthält: Bestellungen, Umsatz, Neukunden des Tages    │
+└─────────────────────────┴─────────────────────────────────────────────────────────┘
+
+## BEISPIEL .ENV KONFIGURATION
+
+```
+# ==================== TELEGRAM ====================
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+TELEGRAM_CHANNEL_ID=-1001234567890
+
+# ==================== E-MAIL EMPFÄNGER ====================
+NOTIFICATION_RECIPIENTS=admin@hermann-boehmer.com,chef@firma.de
+ADMIN_EMAIL=admin@hermann-boehmer.com
+ADMIN_EMAIL_PASSWORD=DeinSicheresPasswort
+
+# ==================== SCHALTER ====================
+NOTIFY_NEW_ORDER=true
+NOTIFY_LOW_STOCK=true
+NOTIFY_CONTACT_FORM=true
+NOTIFY_NEW_CUSTOMER=true
+NOTIFY_NEWSLETTER_SIGNUP=true
+NOTIFY_OUT_OF_STOCK=true
+NOTIFY_COUPON_USED=true
+NOTIFY_DAILY_SUMMARY=true
+```
+
+## HINWEISE
+
+- Telegram UND E-Mail werden IMMER zusammen gesendet
+- Wenn eines fehlschlägt (z.B. Telegram nicht konfiguriert), 
+  wird das andere trotzdem gesendet
+- Nach Änderungen an der .env muss der Server neu gestartet werden:
+  sudo supervisorctl restart backend
+- Logs bei Problemen:
+  tail -f /var/log/supervisor/backend.err.log
+
+## TROUBLESHOOTING
+
+### Telegram funktioniert nicht:
+1. Prüfe ob TELEGRAM_BOT_TOKEN korrekt ist
+2. Prüfe ob TELEGRAM_CHANNEL_ID mit -100 beginnt
+3. Prüfe ob der Bot Admin-Rechte im Channel hat
+4. Teste manuell: curl https://api.telegram.org/bot<TOKEN>/getMe
+
+### E-Mail funktioniert nicht:
+1. Prüfe SMTP-Einstellungen (Host, Port, TLS)
+2. Prüfe ob NOTIFICATION_RECIPIENTS korrekt sind
+3. Prüfe ob ADMIN_EMAIL und Passwort stimmen
+4. Bei Gmail/Outlook: "Weniger sichere Apps" aktivieren oder App-Passwort nutzen
+
+### Keine Benachrichtigungen:
+1. Prüfe ob die entsprechende NOTIFY_* Variable auf "true" steht
+2. Prüfe die Logs: tail -f /var/log/supervisor/backend.err.log
+3. Server neu gestartet nach .env Änderung?

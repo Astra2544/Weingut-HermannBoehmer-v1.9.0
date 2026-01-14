@@ -1,0 +1,142 @@
+{
+  "identity": {
+    "name": "E1",
+    "persona": "The Anti-AI Designer",
+    "philosophy": "Fusion over Imitation. Emotion First. Content is King.",
+    "vibe": "Sun-Drenched Heritage. Warm Luxury. Editorial Elegance."
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Playfair Display, serif",
+      "weights": ["400", "600", "700"],
+      "usage": "All section titles, hero text, product names. Use italic variant for emphasis words.",
+      "letter_spacing": "tracking-tight"
+    },
+    "body": {
+      "font_family": "Manrope, sans-serif",
+      "weights": ["300", "400", "500"],
+      "usage": "Paragraphs, UI elements, navigation, price tags.",
+      "letter_spacing": "tracking-wide"
+    },
+    "accent": {
+      "font_family": "Cormorant Garamond, serif",
+      "usage": "Pull quotes, testimonials, 'Our Story' snippets. Use in italics."
+    }
+  },
+  "colors": {
+    "palette": {
+      "background": {
+        "primary": "#F9F8F6",
+        "secondary": "#F2EFE9",
+        "surface": "#FFFFFF"
+      },
+      "text": {
+        "primary": "#2D2A26",
+        "secondary": "#5C5852",
+        "muted": "#969088",
+        "inverse": "#FFFFFF"
+      },
+      "accent": {
+        "primary": "#8B2E2E",
+        "secondary": "#D4AF37",
+        "tertiary": "#E07A5F"
+      },
+      "border": {
+        "light": "#E5E0D8",
+        "default": "#D6D0C4"
+      }
+    },
+    "usage_rules": {
+      "backgrounds": "Use 'primary' (#F9F8F6) for main page backgrounds. Use 'surface' (#FFFFFF) for cards to create subtle lift.",
+      "text": "Never use pure black. Use 'primary' (#2D2A26) for headings. Use 'secondary' (#5C5852) for body.",
+      "buttons": "Primary buttons: Solid #8B2E2E (Merlot). Secondary buttons: Outline #2D2A26.",
+      "gradients": "FORBIDDEN. Use solid colors or subtle noise textures only."
+    }
+  },
+  "visual_enhancers": {
+    "radius": {
+      "default": "rounded-none",
+      "soft": "rounded-sm",
+      "pill": "rounded-full"
+    },
+    "shadows": {
+      "card": "shadow-[0_4px_20px_-4px_rgba(45,42,38,0.05)]",
+      "hover": "shadow-[0_10px_30px_-4px_rgba(45,42,38,0.1)]",
+      "dropdown": "shadow-[0_8px_30px_rgba(0,0,0,0.08)]"
+    },
+    "textures": {
+      "noise": "Add a 2% noise overlay to the background to kill digital flatness.",
+      "glass": "backdrop-blur-md bg-white/80 border border-white/20"
+    }
+  },
+  "layout_strategies": {
+    "grid_system": {
+      "marketing": "Use 'Bento' grid. Mix wide spans (col-span-8) with narrow spans (col-span-4). Avoid perfect symmetry.",
+      "product_list": "Grid of 3 or 4 columns. Gap-8 or Gap-12. Minimalist cards.",
+      "spacing": "Use generous padding. Section vertical padding: py-24 or py-32."
+    },
+    "container": {
+      "max_width": "max-w-7xl",
+      "padding": "px-6 md:px-12"
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp edges or very slight rounding (rounded-sm). Uppercase text. Wide tracking (tracking-widest).",
+      "hover": "Subtle lift (-translate-y-0.5). Transition colors smoothly."
+    },
+    "cards": {
+      "style": "Flat, no border, transparent background (or white on off-white bg). Focus on the image.",
+      "typography": "Title in Serif (Playfair). Price in Sans (Manrope)."
+    },
+    "navigation": {
+      "style": "Sticky, glassmorphism. Logo centered. Links split left/right or minimal right alignment.",
+      "mobile": "Full screen overlay menu with large serif typography."
+    }
+  },
+  "image_urls": {
+    "hero": {
+      "url": "https://images.unsplash.com/photo-1759221610612-3a3398d5e94d",
+      "alt": "Sun-drenched vineyard at sunrise",
+      "category": "hero_background"
+    },
+    "story": {
+      "url": "https://images.unsplash.com/photo-1765033670303-3a1d62ae5cbd",
+      "alt": "Golden wine pouring into glass",
+      "category": "story_section"
+    },
+    "product_placeholder": {
+      "url": "https://images.pexels.com/photos/10600140/pexels-photo-10600140.jpeg",
+      "alt": "Minimalist wine bottle on white",
+      "category": "product_card"
+    },
+    "texture": {
+      "url": "https://images.pexels.com/photos/219569/pexels-photo-219569.jpeg",
+      "alt": "Vineyard rows texture",
+      "category": "background_texture"
+    },
+    "lifestyle": {
+      "url": "https://images.unsplash.com/photo-1646587191447-11425def78f7",
+      "alt": "Elegant wine tasting table",
+      "category": "lifestyle_section"
+    }
+  },
+  "instructions_to_main_agent": {
+    "general": "You are building a high-end wine shop. The user wants 'HELL' (Light) theme. Do not make it dark. Do not make it boring.",
+    "css_setup": "Import 'Playfair Display' and 'Manrope' from Google Fonts in index.css. Set base background color to #F9F8F6.",
+    "tailwind_config": "Extend the theme with the colors provided. Add the font families.",
+    "shadcn_customization": "Override default Shadcn radius to 0 or 0.125rem. Change primary color to #8B2E2E. Remove default 'slate' grays and replace with warm 'stone' or custom greys.",
+    "critical_rules": [
+      "NO generic gradients.",
+      "NO 'Inter' font for headings.",
+      "NO pure black (#000000).",
+      "Use whitespace aggressively.",
+      "Ensure all interactive elements have data-testid."
+    ]
+  },
+  "universal_guidelines": {
+    "motion": "Use 'framer-motion' for entrance animations (fade-up). Use 'lenis' for smooth scrolling if possible.",
+    "accessibility": "Ensure contrast ratios are met. Use semantic HTML.",
+    "code_style": "Use functional components. Keep files small. Use 'lucide-react' for icons."
+  }
+}

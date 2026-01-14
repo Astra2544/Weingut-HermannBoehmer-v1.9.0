@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: hermann_boehmer_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-boehmer_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-CHANGE_ME_secure_password}
+      POSTGRES_DB: ${DB_NAME:-hermann_boehmer_shop}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_EXTERNAL_PORT:-5580}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-boehmer_admin} -d ${DB_NAME:-hermann_boehmer_shop}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hermann_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hermann_boehmer_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-boehmer_admin}:${DB_PASSWORD:-CHANGE_ME_secure_password}@postgres:5432/${DB_NAME:-hermann_boehmer_shop}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-hermann_boehmer_shop}
+      DB_USER: ${DB_USER:-boehmer_admin}
+      DB_PASSWORD: ${DB_PASSWORD:-CHANGE_ME_secure_password}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_use_openssl_rand_hex_32}
+      ADMIN_SECRET: ${ADMIN_SECRET:-CHANGE_ME_admin_secret}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-sk_test_placeholder}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://hermann-boehmer.com,https://www.hermann-boehmer.com}
+      SMTP_HOST: ${SMTP_HOST:-smtp.hostinger.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SENDER_EMAIL: ${SENDER_EMAIL:-}
+      SENDER_PASSWORD: ${SENDER_PASSWORD:-}
+      SENDER_NAME: ${SENDER_NAME:-Hermann Böhmer Wachauer Gold}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-}
+      CONTACT_EMAIL_PASSWORD: ${CONTACT_EMAIL_PASSWORD:-}
+      CONTACT_EMAIL_NAME: ${CONTACT_EMAIL_NAME:-Hermann Böhmer Kundenservice}
+      NEWSLETTER_EMAIL: ${NEWSLETTER_EMAIL:-}
+      NEWSLETTER_EMAIL_PASSWORD: ${NEWSLETTER_EMAIL_PASSWORD:-}
+      NEWSLETTER_EMAIL_NAME: ${NEWSLETTER_EMAIL_NAME:-Hermann Böhmer Newsletter}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_EMAIL_PASSWORD: ${ADMIN_EMAIL_PASSWORD:-}
+      FRONTEND_URL: ${FRONTEND_URL:-https://hermann-boehmer.com}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-}
+      NOTIFICATION_RECIPIENTS: ${NOTIFICATION_RECIPIENTS:-}
+      NOTIFY_NEW_ORDER: ${NOTIFY_NEW_ORDER:-true}
+      NOTIFY_LOW_STOCK: ${NOTIFY_LOW_STOCK:-true}
+      NOTIFY_CONTACT_FORM: ${NOTIFY_CONTACT_FORM:-true}
+      NOTIFY_NEW_CUSTOMER: ${NOTIFY_NEW_CUSTOMER:-true}
+      NOTIFY_NEWSLETTER_SIGNUP: ${NOTIFY_NEWSLETTER_SIGNUP:-true}
+      NOTIFY_OUT_OF_STOCK: ${NOTIFY_OUT_OF_STOCK:-true}
+      NOTIFY_COUPON_USED: ${NOTIFY_COUPON_USED:-true}
+      NOTIFY_DAILY_SUMMARY: ${NOTIFY_DAILY_SUMMARY:-true}
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - hermann_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-https://api.hermann-boehmer.com}
+        REACT_APP_STRIPE_PUBLISHABLE_KEY: ${REACT_APP_STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
+        REACT_APP_UNDER_CONSTRUCTION: ${REACT_APP_UNDER_CONSTRUCTION:-false}
+    container_name: hermann_boehmer_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    expose:
+      - "80"
+    networks:
+      - hermann_network
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: hermann_boehmer_nginx
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+      - nginx_reload:/etc/nginx/reload
+    networks:
+      - hermann_network
+
+  # Certbot - Holt SSL Zertifikate EINMALIG beim Start
+  # Stoppt nach max 2 Versuchen um Rate Limit zu vermeiden!
+  # Nach Erfolg signalisiert er Nginx zum Neuladen
+  certbot:
+    build:
+      context: ./certbot
+      dockerfile: Dockerfile
+    container_name: hermann_boehmer_certbot
+    restart: "no"
+    depends_on:
+      - nginx
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+      - nginx_reload:/etc/nginx/reload
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - NGINX_CONTAINER=nginx
+    networks:
+      - hermann_network
+
+  # Certbot Renewal - Läuft im Hintergrund und erneuert Zertifikate automatisch
+  # Nach Erneuerung wird Nginx automatisch neu geladen
+  certbot-renew:
+    build:
+      context: ./certbot
+      dockerfile: Dockerfile.renew
+    container_name: hermann_boehmer_certbot_renew
+    restart: unless-stopped
+    depends_on:
+      - nginx
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - hermann_network
+
+volumes:
+  postgres_data:
+    driver: local
+  certbot_conf:
+    driver: local
+  certbot_www:
+    driver: local
+  nginx_reload:
+    driver: local
+
+networks:
+  hermann_network:
+    driver: bridge

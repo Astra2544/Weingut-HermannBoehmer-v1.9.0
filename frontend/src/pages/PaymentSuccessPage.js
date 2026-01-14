@@ -117,6 +117,29 @@ export default function PaymentSuccessPage() {
             >
               <Sparkles size={28} className="text-amber-500" />
             </motion.div>
+            {[...Array(8)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-2 h-2 rounded-full bg-green-400"
+                style={{
+                  top: '50%',
+                  left: '50%',
+                }}
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{
+                  opacity: [0, 1, 1, 0],
+                  scale: [0, 1, 1, 0],
+                  x: [0, Math.cos((i * 45 * Math.PI) / 180) * 70],
+                  y: [0, Math.sin((i * 45 * Math.PI) / 180) * 70],
+                  rotate: [0, 360],
+                }}
+                transition={{
+                  duration: 1.5,
+                  delay: 0.3 + i * 0.05,
+                  ease: 'easeOut',
+                }}
+              />
+            ))}
           </motion.div>
 
           <motion.div

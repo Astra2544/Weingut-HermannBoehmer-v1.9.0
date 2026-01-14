@@ -377,19 +377,18 @@ def generate_tracking_number() -> str:
     return f"{prefix}{timestamp}{random_part}"
 
 
-async def generate_invoice_number() -> str:
+async def generate_invoice_number(session) -> str:
     """Generate sequential invoice number like RE-2026-00001"""
     year = datetime.now().year
-    async with async_session() as session:
-        result = await session.execute(
-            select(func.count(DBOrder.id)).where(
-                DBOrder.invoice_number.isnot(None),
-                DBOrder.invoice_number.like(f"RE-{year}-%")
-            )
+    result = await session.execute(
+        select(func.count(DBOrder.id)).where(
+            DBOrder.invoice_number.isnot(None),
+            DBOrder.invoice_number.like(f"RE-{year}-%")
         )
-        count = result.scalar() or 0
-        next_number = count + 1
-        return f"RE-{year}-{next_number:05d}"
+    )
+    count = result.scalar() or 0
+    next_number = count + 1
+    return f"RE-{year}-{next_number:05d}"
 
 def db_to_dict(obj, exclude: List[str] = None) -> dict:
     """Convert SQLAlchemy object to dictionary"""
@@ -1688,7 +1687,7 @@ async def complete_demo_checkout(
             raise HTTPException(status_code=410, detail="Checkout session expired")
 
         tracking_number = generate_tracking_number()
-        invoice_number = await generate_invoice_number()
+        invoice_number = await generate_invoice_number(session)
         order_id = str(uuid.uuid4())
 
         order = DBOrder(
@@ -1830,7 +1829,7 @@ async def verify_payment(
                 raise HTTPException(status_code=400, detail="Session already processed but order not found")
 
             tracking_number = generate_tracking_number()
-            invoice_number = await generate_invoice_number()
+            invoice_number = await generate_invoice_number(session)
             order_id = str(uuid.uuid4())
 
             order = DBOrder(

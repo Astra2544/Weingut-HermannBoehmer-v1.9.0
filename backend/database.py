@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy import (
     Column, String, Float, Integer, Boolean, DateTime, Text, JSON, ForeignKey,
-    create_engine, Index, Enum as SQLEnum
+    create_engine, Index, Enum as SQLEnum, text
 )
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -379,6 +379,20 @@ async def init_db():
     """Initialize database - create all tables"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # Add invoice_number column if it doesn't exist (migration for existing databases)
+        await conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'orders' AND column_name = 'invoice_number'
+                ) THEN
+                    ALTER TABLE orders ADD COLUMN invoice_number VARCHAR(50) UNIQUE;
+                    CREATE INDEX IF NOT EXISTS ix_orders_invoice_number ON orders(invoice_number);
+                END IF;
+            END $$;
+        """))
     print("✅ Database tables created successfully!")
 
 

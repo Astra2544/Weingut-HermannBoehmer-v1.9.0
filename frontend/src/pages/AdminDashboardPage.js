@@ -2509,11 +2509,45 @@ export default function AdminDashboardPage() {
                   </button>
                 </div>
 
-                {/* Order Date */}
-                <div className="text-center text-sm text-[#969088]">
-                  {language === 'de' ? 'Bestellt am' : 'Ordered on'}: {new Date(selectedOrder.created_at).toLocaleDateString('de-AT', { 
-                    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-                  })}
+                {/* Order Date & Invoice */}
+                <div className="text-center space-y-3">
+                  <p className="text-sm text-[#969088]">
+                    {language === 'de' ? 'Bestellt am' : 'Ordered on'}: {new Date(selectedOrder.created_at).toLocaleDateString('de-AT', {
+                      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </p>
+                  {selectedOrder.invoice_number && (
+                    <p className="text-sm text-[#969088]">
+                      {language === 'de' ? 'Rechnungsnr.' : 'Invoice No.'}: <span className="font-medium text-[#2D2A26]">{selectedOrder.invoice_number}</span>
+                    </p>
+                  )}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await axios.get(
+                          `${API}/admin/orders/${selectedOrder.id}/invoice`,
+                          {
+                            headers: { Authorization: `Bearer ${token}` },
+                            responseType: 'blob'
+                          }
+                        );
+                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', `Rechnung_${selectedOrder.invoice_number || selectedOrder.tracking_number}.pdf`);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        window.URL.revokeObjectURL(url);
+                      } catch (error) {
+                        toast.error(language === 'de' ? 'Fehler beim Herunterladen' : 'Download failed');
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#F2EFE9] hover:bg-[#E5E0D8] text-[#2D2A26] text-sm transition-colors"
+                  >
+                    <Download size={16} />
+                    {language === 'de' ? 'Rechnung herunterladen' : 'Download Invoice'}
+                  </button>
                 </div>
               </div>
             </motion.div>

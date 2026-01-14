@@ -61,30 +61,12 @@ export default function PaymentSuccessPage() {
   }, [sessionId, isDemo, trackingNumber, clearCart, language]);
 
   const triggerConfetti = () => {
-    const duration = 3000;
-    const end = Date.now() + duration;
-
-    const frame = () => {
-      confetti({
-        particleCount: 3,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0 },
-        colors: ['#8B2E2E', '#D4AF37', '#2D2A26']
-      });
-      confetti({
-        particleCount: 3,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1 },
-        colors: ['#8B2E2E', '#D4AF37', '#2D2A26']
-      });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-    };
-    frame();
+    confetti({
+      particleCount: 50,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#8B2E2E', '#D4AF37', '#2D2A26']
+    });
   };
 
   if (loading) {

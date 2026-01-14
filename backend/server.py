@@ -3,6 +3,7 @@ Hermann Böhmer Shop API - PostgreSQL Version
 Complete migration from MongoDB to PostgreSQL with SQLAlchemy async
 """
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request, BackgroundTasks
+from fastapi.responses import Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -68,6 +69,9 @@ from notification_service import (
     notify_coupon_used,
     check_stock_levels
 )
+
+# Invoice Generator
+from invoice_generator import generate_invoice_pdf, generate_invoice_filename
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -371,6 +375,21 @@ def generate_tracking_number() -> str:
     timestamp = datetime.now().strftime("%y%m%d")
     random_part = secrets.token_hex(3).upper()
     return f"{prefix}{timestamp}{random_part}"
+
+
+async def generate_invoice_number() -> str:
+    """Generate sequential invoice number like RE-2026-00001"""
+    year = datetime.now().year
+    async with async_session() as session:
+        result = await session.execute(
+            select(func.count(DBOrder.id)).where(
+                DBOrder.invoice_number.isnot(None),
+                DBOrder.invoice_number.like(f"RE-{year}-%")
+            )
+        )
+        count = result.scalar() or 0
+        next_number = count + 1
+        return f"RE-{year}-{next_number:05d}"
 
 def db_to_dict(obj, exclude: List[str] = None) -> dict:
     """Convert SQLAlchemy object to dictionary"""
@@ -1669,11 +1688,13 @@ async def complete_demo_checkout(
             raise HTTPException(status_code=410, detail="Checkout session expired")
 
         tracking_number = generate_tracking_number()
+        invoice_number = await generate_invoice_number()
         order_id = str(uuid.uuid4())
 
         order = DBOrder(
             id=order_id,
             tracking_number=tracking_number,
+            invoice_number=invoice_number,
             customer_id=checkout_session.customer_id,
             customer_name=checkout_session.customer_name,
             customer_email=checkout_session.customer_email,
@@ -1809,11 +1830,13 @@ async def verify_payment(
                 raise HTTPException(status_code=400, detail="Session already processed but order not found")
 
             tracking_number = generate_tracking_number()
+            invoice_number = await generate_invoice_number()
             order_id = str(uuid.uuid4())
 
             order = DBOrder(
                 id=order_id,
                 tracking_number=tracking_number,
+                invoice_number=invoice_number,
                 stripe_session_id=session_id,
                 customer_id=checkout_session.customer_id,
                 customer_name=checkout_session.customer_name,
@@ -2077,6 +2100,62 @@ async def track_order(tracking_number: str):
             "carrier_tracking_url": order.carrier_tracking_url,
             "created_at": order.created_at.isoformat() if order.created_at else None
         }
+
+
+# ==================== INVOICE DOWNLOAD ====================
+
+@api_router.get("/orders/{order_id}/invoice")
+async def download_invoice_customer(order_id: str, customer: dict = Depends(get_current_customer)):
+    """Download invoice as PDF for customer's own order"""
+    async with async_session() as session:
+        result = await session.execute(
+            select(DBOrder).where(
+                DBOrder.id == order_id,
+                DBOrder.customer_id == customer['id']
+            )
+        )
+        order = result.scalar_one_or_none()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        order_dict = db_to_dict(order)
+        pdf_bytes = generate_invoice_pdf(order_dict)
+        filename = generate_invoice_filename(order_dict)
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+
+
+@api_router.get("/admin/orders/{order_id}/invoice")
+async def download_invoice_admin(order_id: str, admin: dict = Depends(get_current_admin)):
+    """Download invoice as PDF for any order (admin only)"""
+    async with async_session() as session:
+        result = await session.execute(
+            select(DBOrder).where(DBOrder.id == order_id)
+        )
+        order = result.scalar_one_or_none()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        order_dict = db_to_dict(order)
+        pdf_bytes = generate_invoice_pdf(order_dict)
+        filename = generate_invoice_filename(order_dict)
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+
 
 # ==================== CONTACT FORM ====================
 

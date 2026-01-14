@@ -119,9 +119,10 @@ class Customer(Base):
 
 class Order(Base):
     __tablename__ = 'orders'
-    
+
     id = Column(String(36), primary_key=True, default=generate_uuid)
     tracking_number = Column(String(50), unique=True, nullable=False, index=True)
+    invoice_number = Column(String(50), unique=True, nullable=True, index=True)
     
     # Customer info
     customer_id = Column(String(36), ForeignKey('customers.id'), nullable=True, index=True)

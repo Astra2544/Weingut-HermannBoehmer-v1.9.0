@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Package, User, MapPin, LogOut, ChevronRight, Clock, Truck, CheckCircle, 
+import {
+  Package, User, MapPin, LogOut, ChevronRight, Clock, Truck, CheckCircle,
   ShoppingBag, Lock, Eye, EyeOff, AlertCircle, Award, TrendingUp, Calendar,
-  Edit2, Save, X, Mail, FileText
+  Edit2, Save, X, Mail, FileText, Download
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -553,6 +553,30 @@ export default function CustomerDashboardPage() {
                                     </div>
                                   </div>
 
+                                  {/* Order Summary */}
+                                  <div className="border-t border-[#E5E0D8] pt-3 mt-3 space-y-1">
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-[#969088]">{language === 'de' ? 'Zwischensumme' : 'Subtotal'}</span>
+                                      <span className="text-[#5C5852]">€{(order.subtotal || (order.total_amount - (order.shipping_cost || 0))).toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-[#969088]">{language === 'de' ? 'Versand' : 'Shipping'}</span>
+                                      <span className="text-[#5C5852]">
+                                        {order.shipping_cost > 0 ? `€${order.shipping_cost.toFixed(2)}` : (language === 'de' ? 'Gratis' : 'Free')}
+                                      </span>
+                                    </div>
+                                    {order.discount_amount > 0 && (
+                                      <div className="flex justify-between text-sm">
+                                        <span className="text-[#969088]">{language === 'de' ? 'Rabatt' : 'Discount'}</span>
+                                        <span className="text-green-600">-€{order.discount_amount.toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between text-sm font-medium pt-2 border-t border-[#E5E0D8]">
+                                      <span className="text-[#2D2A26]">{language === 'de' ? 'Gesamt' : 'Total'}</span>
+                                      <span className="text-[#8B2E2E]">€{order.total_amount?.toFixed(2)}</span>
+                                    </div>
+                                  </div>
+
                                   {/* Shipping Address */}
                                   <div>
                                     <p className="text-sm font-medium text-[#969088] mb-2">
@@ -566,17 +590,50 @@ export default function CustomerDashboardPage() {
                                     </p>
                                   </div>
 
-                                  {/* Tracking */}
-                                  {order.tracking_number && (
-                                    <Link
-                                      to={`/tracking?number=${order.tracking_number}`}
-                                      className="inline-flex items-center gap-2 text-sm text-[#8B2E2E] hover:underline"
+                                  {/* Actions */}
+                                  <div className="flex flex-wrap gap-4">
+                                    {order.tracking_number && (
+                                      <Link
+                                        to={`/tracking?number=${order.tracking_number}`}
+                                        className="inline-flex items-center gap-2 text-sm text-[#8B2E2E] hover:underline"
+                                      >
+                                        <Truck size={16} />
+                                        {language === 'de' ? 'Sendung verfolgen' : 'Track Shipment'}
+                                        <ChevronRight size={14} />
+                                      </Link>
+                                    )}
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        try {
+                                          const response = await axios.get(
+                                            `${API}/orders/${order.id}/invoice`,
+                                            {
+                                              headers: { Authorization: `Bearer ${token}` },
+                                              responseType: 'blob'
+                                            }
+                                          );
+                                          const url = window.URL.createObjectURL(new Blob([response.data]));
+                                          const link = document.createElement('a');
+                                          link.href = url;
+                                          link.setAttribute('download', `Rechnung_${order.invoice_number || order.tracking_number}.pdf`);
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          link.remove();
+                                          window.URL.revokeObjectURL(url);
+                                        } catch (error) {
+                                          toast.error(language === 'de' ? 'Fehler beim Herunterladen' : 'Download failed');
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-2 text-sm text-[#5C5852] hover:text-[#8B2E2E] transition-colors"
                                     >
-                                      <Truck size={16} />
-                                      {language === 'de' ? 'Sendung verfolgen' : 'Track Shipment'}
-                                      <ChevronRight size={14} />
-                                    </Link>
-                                  )}
+                                      <Download size={16} />
+                                      {language === 'de' ? 'Rechnung' : 'Invoice'}
+                                      {order.invoice_number && (
+                                        <span className="text-xs text-[#969088]">({order.invoice_number})</span>
+                                      )}
+                                    </button>
+                                  </div>
                                 </div>
                               </motion.div>
                             )}

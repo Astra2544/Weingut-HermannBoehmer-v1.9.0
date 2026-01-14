@@ -74,6 +74,8 @@ def generate_invoice_pdf(order: dict) -> bytes:
     
     elements = []
     
+    invoice_number = order.get('invoice_number', order.get('tracking_number', ''))
+
     # Header with Company Info and Invoice Title
     header_data = [
         [
@@ -82,7 +84,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
         ],
         [
             Paragraph('Wachauer Gold<br/>Weingut Dürnstein', styles['NormalText']),
-            Paragraph(f'Rechnungsnr.: {order.get("tracking_number", "")}<br/>Datum: {datetime.now().strftime("%d.%m.%Y")}', styles['NormalText'])
+            Paragraph(f'Rechnungsnr.: {invoice_number}<br/>Datum: {datetime.now().strftime("%d.%m.%Y")}', styles['NormalText'])
         ]
     ]
     
@@ -126,10 +128,10 @@ def generate_invoice_pdf(order: dict) -> bytes:
     # Items
     item_details = order.get('item_details', [])
     for item in item_details:
-        name = item.get('name_de', item.get('name', 'Produkt'))
+        name = item.get('product_name_de', item.get('name_de', item.get('name', 'Produkt')))
         qty = item.get('quantity', 1)
-        price = item.get('price', 0)
-        total = qty * price
+        price = item.get('product_price', item.get('price', 0))
+        total = item.get('subtotal', qty * price)
         items_data.append([
             name,
             str(qty),
@@ -225,6 +227,5 @@ def generate_invoice_pdf(order: dict) -> bytes:
 
 def generate_invoice_filename(order: dict) -> str:
     """Generiert einen Dateinamen für die Rechnung"""
-    tracking = order.get('tracking_number', order.get('id', 'order')[:8])
-    date = datetime.now().strftime('%Y%m%d')
-    return f"Rechnung_{tracking}_{date}.pdf"
+    invoice_num = order.get('invoice_number', order.get('tracking_number', order.get('id', 'order')[:8]))
+    return f"Rechnung_{invoice_num}.pdf"

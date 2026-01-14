@@ -3,7 +3,6 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle, Package, ArrowRight, Loader2, Sparkles, Mail, Truck } from 'lucide-react';
 import axios from 'axios';
-import confetti from 'canvas-confetti';
 import { useLanguage } from '../context/LanguageContext';
 import { useCart } from '../context/CartContext';
 
@@ -27,7 +26,6 @@ export default function PaymentSuccessPage() {
         setOrderData({ tracking_number: trackingNumber });
         clearCart();
         setLoading(false);
-        triggerConfetti();
         return;
       }
 
@@ -45,7 +43,6 @@ export default function PaymentSuccessPage() {
         if (response.data.success) {
           setOrderData(response.data.order);
           clearCart();
-          triggerConfetti();
         } else {
           setError(language === 'de' ? 'Zahlung nicht bestätigt' : 'Payment not confirmed');
         }
@@ -59,15 +56,6 @@ export default function PaymentSuccessPage() {
 
     verifyPayment();
   }, [sessionId, isDemo, trackingNumber, clearCart, language]);
-
-  const triggerConfetti = () => {
-    confetti({
-      particleCount: 50,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#8B2E2E', '#D4AF37', '#2D2A26']
-    });
-  };
 
   if (loading) {
     return (

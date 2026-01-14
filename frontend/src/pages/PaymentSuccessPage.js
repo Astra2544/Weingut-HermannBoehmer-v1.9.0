@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, Package, ArrowRight, Loader2 } from 'lucide-react';
+import { CheckCircle, Package, ArrowRight, Loader2, Sparkles, Mail, Truck } from 'lucide-react';
 import axios from 'axios';
+import confetti from 'canvas-confetti';
 import { useLanguage } from '../context/LanguageContext';
 import { useCart } from '../context/CartContext';
 
@@ -17,34 +18,19 @@ export default function PaymentSuccessPage() {
   const [error, setError] = useState(null);
 
   const sessionId = searchParams.get('session_id');
-  const pendingOrder = searchParams.get('pending_order'); // Base64 encoded order data
-  const demoMode = searchParams.get('demo');
+  const isDemo = searchParams.get('demo') === 'true';
+  const trackingNumber = searchParams.get('tracking');
 
   useEffect(() => {
     const verifyPayment = async () => {
-      // Demo Mode - verify with pending_order data
-      if (demoMode === 'true' && pendingOrder) {
-        try {
-          const response = await axios.get(`${API}/payment/verify`, {
-            params: { pending_order: pendingOrder, demo: 'true' }
-          });
-          
-          if (response.data.success) {
-            setOrderData(response.data.order);
-            clearCart();
-          } else {
-            setError(language === 'de' ? 'Zahlung nicht bestätigt' : 'Payment not confirmed');
-          }
-        } catch (err) {
-          console.error('Demo payment verification error:', err);
-          setError(language === 'de' ? 'Fehler bei der Zahlungsbestätigung' : 'Payment verification error');
-        } finally {
-          setLoading(false);
-        }
+      if (isDemo && trackingNumber) {
+        setOrderData({ tracking_number: trackingNumber });
+        clearCart();
+        setLoading(false);
+        triggerConfetti();
         return;
       }
 
-      // Real Stripe Mode - verify with session_id
       if (!sessionId) {
         setError(language === 'de' ? 'Keine Session gefunden' : 'No session found');
         setLoading(false);
@@ -55,10 +41,11 @@ export default function PaymentSuccessPage() {
         const response = await axios.get(`${API}/payment/verify`, {
           params: { session_id: sessionId }
         });
-        
-        if (response.data.success || response.data.payment_status === 'paid') {
-          setOrderData(response.data.order || response.data);
+
+        if (response.data.success) {
+          setOrderData(response.data.order);
           clearCart();
+          triggerConfetti();
         } else {
           setError(language === 'de' ? 'Zahlung nicht bestätigt' : 'Payment not confirmed');
         }
@@ -71,14 +58,46 @@ export default function PaymentSuccessPage() {
     };
 
     verifyPayment();
-  }, [sessionId, pendingOrder, demoMode, clearCart, language]);
+  }, [sessionId, isDemo, trackingNumber, clearCart, language]);
+
+  const triggerConfetti = () => {
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    const frame = () => {
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#8B2E2E', '#D4AF37', '#2D2A26']
+      });
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#8B2E2E', '#D4AF37', '#2D2A26']
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+    frame();
+  };
 
   if (loading) {
     return (
-      <main className="bg-[#F9F8F6] min-h-screen pt-28 md:pt-32">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 md:px-12 py-16 text-center">
-          <Loader2 size={48} className="animate-spin text-[#8B2E2E] mx-auto mb-4" />
-          <p className="text-[#5C5852]">
+      <main className="bg-gradient-to-b from-[#F9F8F6] to-[#F2EFE9] min-h-screen pt-28 md:pt-32">
+        <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+          <div className="relative">
+            <Loader2 size={56} className="animate-spin text-[#8B2E2E] mx-auto mb-6" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-[#8B2E2E]/10 animate-ping" />
+            </div>
+          </div>
+          <p className="text-[#5C5852] text-lg">
             {language === 'de' ? 'Zahlung wird überprüft...' : 'Verifying payment...'}
           </p>
         </div>
@@ -88,15 +107,15 @@ export default function PaymentSuccessPage() {
 
   if (error) {
     return (
-      <main className="bg-[#F9F8F6] min-h-screen pt-28 md:pt-32">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 md:px-12 py-16 text-center">
-          <div className="w-16 h-16 bg-red-100 flex items-center justify-center mx-auto mb-6">
-            <span className="text-red-600 text-2xl">!</span>
+      <main className="bg-gradient-to-b from-[#F9F8F6] to-[#F2EFE9] min-h-screen pt-28 md:pt-32">
+        <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+          <div className="w-20 h-20 bg-red-100 flex items-center justify-center mx-auto mb-6 rounded-full">
+            <span className="text-red-600 text-3xl">!</span>
           </div>
           <h1 className="font-serif text-3xl text-[#2D2A26]">
             {language === 'de' ? 'Fehler' : 'Error'}
           </h1>
-          <p className="text-[#5C5852] mt-4">{error}</p>
+          <p className="text-[#5C5852] mt-4 text-lg">{error}</p>
           <Link to="/cart" className="btn-primary inline-flex items-center gap-2 mt-8">
             {language === 'de' ? 'Zurück zum Warenkorb' : 'Back to Cart'}
           </Link>
@@ -106,91 +125,143 @@ export default function PaymentSuccessPage() {
   }
 
   return (
-    <main className="bg-[#F9F8F6] min-h-screen pt-28 md:pt-32" data-testid="payment-success-page">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 md:px-12 py-8 md:py-16">
+    <main className="bg-gradient-to-b from-[#F9F8F6] to-[#F2EFE9] min-h-screen pt-28 md:pt-32" data-testid="payment-success-page">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-16">
         <div className="text-center">
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', damping: 15 }}
-            className="w-20 h-20 bg-green-600 flex items-center justify-center mx-auto mb-8"
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', damping: 12, duration: 0.8 }}
+            className="relative w-28 h-28 mx-auto mb-8"
           >
-            <CheckCircle size={40} className="text-white" />
+            <div className="absolute inset-0 bg-green-500/20 rounded-full animate-ping" />
+            <div className="absolute inset-2 bg-green-500/30 rounded-full animate-pulse" />
+            <div className="relative w-full h-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center rounded-full shadow-xl">
+              <CheckCircle size={56} className="text-white" />
+            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.5 }}
+              className="absolute -top-2 -right-2"
+            >
+              <Sparkles size={28} className="text-amber-500" />
+            </motion.div>
           </motion.div>
-          
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.3 }}
           >
-            <h1 className="font-serif text-3xl md:text-4xl text-[#2D2A26]">
-              {language === 'de' ? 'Zahlung erfolgreich!' : 'Payment Successful!'}
+            <h1 className="font-serif text-4xl md:text-5xl text-[#2D2A26] mb-4">
+              {language === 'de' ? 'Vielen Dank!' : 'Thank You!'}
             </h1>
-            <p className="text-[#5C5852] mt-4 text-lg">
-              {language === 'de' 
-                ? 'Vielen Dank für Ihre Bestellung. Wir haben Ihre Zahlung erhalten und werden Ihre Bestellung schnellstmöglich bearbeiten.' 
-                : 'Thank you for your order. We have received your payment and will process your order as soon as possible.'}
+            <p className="text-[#5C5852] text-lg md:text-xl max-w-xl mx-auto">
+              {language === 'de'
+                ? 'Ihre Bestellung wurde erfolgreich aufgegeben. Wir bereiten sie mit Liebe vor.'
+                : 'Your order has been successfully placed. We are preparing it with care.'}
             </p>
           </motion.div>
         </div>
 
-        {/* Tracking Number */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white border border-[#E5E0D8] p-8 mt-8 text-center"
+          transition={{ delay: 0.4 }}
+          className="bg-white border border-[#E5E0D8] rounded-2xl p-8 mt-10 text-center shadow-lg"
         >
-          <p className="text-[#969088] text-xs uppercase tracking-wider">
-            {language === 'de' ? 'Ihre Tracking-Nummer' : 'Your Tracking Number'}
-          </p>
-          <p className="text-3xl font-serif text-[#8B2E2E] mt-3 font-mono">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#F2EFE9] rounded-full mb-4">
+            <Package size={18} className="text-[#8B2E2E]" />
+            <span className="text-sm font-medium text-[#5C5852]">
+              {language === 'de' ? 'Ihre Tracking-Nummer' : 'Your Tracking Number'}
+            </span>
+          </div>
+          <p className="text-4xl md:text-5xl font-serif text-[#8B2E2E] font-mono tracking-wider">
             {orderData?.tracking_number || '—'}
           </p>
-          <p className="text-sm text-[#5C5852] mt-4">
-            {language === 'de' 
-              ? 'Speichern Sie diese Nummer um Ihre Bestellung zu verfolgen.' 
+          <p className="text-sm text-[#969088] mt-4">
+            {language === 'de'
+              ? 'Speichern Sie diese Nummer um Ihre Bestellung zu verfolgen.'
               : 'Save this number to track your order.'}
           </p>
         </motion.div>
 
-        {/* What's Next */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-[#F2EFE9] p-6 mt-6"
+          transition={{ delay: 0.5 }}
+          className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6"
         >
-          <div className="flex items-start gap-4">
-            <Package size={24} className="text-[#8B2E2E] flex-shrink-0 mt-1" />
+          <div className="bg-white border border-[#E5E0D8] rounded-xl p-6 flex items-start gap-4">
+            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0">
+              <Mail size={24} className="text-blue-600" />
+            </div>
             <div>
-              <h3 className="font-serif text-lg text-[#2D2A26]">
-                {language === 'de' ? 'Wie geht es weiter?' : 'What happens next?'}
+              <h3 className="font-medium text-[#2D2A26] mb-1">
+                {language === 'de' ? 'Bestätigung per E-Mail' : 'Email Confirmation'}
               </h3>
-              <ul className="text-sm text-[#5C5852] mt-2 space-y-2">
-                <li>• {language === 'de' ? 'Sie erhalten eine Bestätigungs-E-Mail' : 'You will receive a confirmation email'}</li>
-                <li>• {language === 'de' ? 'Wir bereiten Ihre Bestellung vor' : 'We will prepare your order'}</li>
-                <li>• {language === 'de' ? 'Sie werden benachrichtigt wenn es versandt wird' : 'You will be notified when it ships'}</li>
-              </ul>
+              <p className="text-sm text-[#5C5852]">
+                {language === 'de'
+                  ? 'Sie erhalten in Kürze eine Bestätigungsmail mit allen Details.'
+                  : 'You will receive a confirmation email shortly with all details.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-[#E5E0D8] rounded-xl p-6 flex items-start gap-4">
+            <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center flex-shrink-0">
+              <Truck size={24} className="text-amber-600" />
+            </div>
+            <div>
+              <h3 className="font-medium text-[#2D2A26] mb-1">
+                {language === 'de' ? 'Schneller Versand' : 'Fast Shipping'}
+              </h3>
+              <p className="text-sm text-[#5C5852]">
+                {language === 'de'
+                  ? 'Wir versenden innerhalb von 1-2 Werktagen.'
+                  : 'We ship within 1-2 business days.'}
+              </p>
             </div>
           </div>
         </motion.div>
 
-        {/* Actions */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="flex flex-col sm:flex-row gap-4 justify-center mt-8"
+          transition={{ delay: 0.6 }}
+          className="flex flex-col sm:flex-row gap-4 justify-center mt-10"
         >
-          <Link to="/tracking" className="btn-primary inline-flex items-center justify-center gap-2">
+          <Link
+            to="/tracking"
+            className="btn-primary inline-flex items-center justify-center gap-2 text-lg px-8 py-4"
+          >
             {language === 'de' ? 'Bestellung verfolgen' : 'Track Order'}
-            <ArrowRight size={18} />
+            <ArrowRight size={20} />
           </Link>
-          <Link to="/shop" className="btn-secondary inline-flex items-center justify-center gap-2">
+          <Link
+            to="/shop"
+            className="btn-secondary inline-flex items-center justify-center gap-2 text-lg px-8 py-4"
+          >
             {language === 'de' ? 'Weiter einkaufen' : 'Continue Shopping'}
           </Link>
         </motion.div>
+
+        {isDemo && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg text-center"
+          >
+            <p className="text-amber-800 text-sm">
+              <strong>{language === 'de' ? 'Testmodus:' : 'Test Mode:'}</strong>{' '}
+              {language === 'de'
+                ? 'Dies war eine Demo-Bestellung. Im Live-Betrieb wird echtes Geld verarbeitet.'
+                : 'This was a demo order. In live mode, real money will be processed.'}
+            </p>
+          </motion.div>
+        )}
       </div>
     </main>
   );

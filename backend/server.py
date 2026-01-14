@@ -41,7 +41,8 @@ from database import (
     Expense as DBExpense,
     AdminEmail as DBAdminEmail,
     ProductView as DBProductView,
-    NotificationLog as DBNotificationLog
+    NotificationLog as DBNotificationLog,
+    PendingCheckoutSession as DBPendingCheckoutSession
 )
 
 # Stripe Integration
@@ -1438,28 +1439,28 @@ async def apply_coupon_to_order(code: str, subtotal: float) -> dict:
 
 @api_router.post("/orders/create-checkout")
 async def create_order_with_checkout(request: Request, order_data: CreateOrderRequest, background_tasks: BackgroundTasks):
-    """Create checkout session - Order wird erst nach erfolgreicher Zahlung gespeichert!"""
-    
+    """Create secure checkout session - Order wird erst nach erfolgreicher Zahlung gespeichert!"""
+    import json
+
     async with async_session() as session:
-        # Calculate total and gather item details
         subtotal = 0.0
         item_details = []
-        
+
         for item in order_data.items:
             result = await session.execute(
                 select(DBProduct).where(DBProduct.id == item.product_id)
             )
             product = result.scalar_one_or_none()
-            
+
             if not product:
                 raise HTTPException(status_code=400, detail=f"Product {item.product_id} not found")
-            
+
             if product.stock < item.quantity:
                 raise HTTPException(status_code=400, detail=f"Not enough stock for {product.name_de}")
-            
+
             item_subtotal = float(product.price) * item.quantity
             subtotal += item_subtotal
-            
+
             item_details.append({
                 'product_id': item.product_id,
                 'quantity': item.quantity,
@@ -1469,8 +1470,7 @@ async def create_order_with_checkout(request: Request, order_data: CreateOrderRe
                 'product_image_url': product.image_url,
                 'subtotal': item_subtotal
             })
-        
-        # Get shipping cost
+
         result = await session.execute(
             select(DBShippingRate).where(
                 DBShippingRate.country == order_data.shipping_country,
@@ -1478,15 +1478,14 @@ async def create_order_with_checkout(request: Request, order_data: CreateOrderRe
             )
         )
         shipping_rate = result.scalar_one_or_none()
-        
+
         shipping_cost = 9.90
         if shipping_rate:
             if shipping_rate.free_shipping_threshold > 0 and subtotal >= shipping_rate.free_shipping_threshold:
                 shipping_cost = 0.0
             else:
                 shipping_cost = float(shipping_rate.rate)
-        
-        # Apply coupon
+
         discount_amount = 0.0
         coupon_details = None
         if order_data.coupon_code:
@@ -1494,54 +1493,48 @@ async def create_order_with_checkout(request: Request, order_data: CreateOrderRe
             if coupon_result.get('valid'):
                 discount_amount = coupon_result['discount_amount']
                 coupon_details = coupon_result
-        
+
         total = subtotal - discount_amount + shipping_cost
-        
-        # Generiere Order ID für Tracking
-        pending_order_id = str(uuid.uuid4())
-        
-        # Speichere Order-Daten als JSON in metadata für später
-        order_metadata = {
-            "pending_order_id": pending_order_id,
-            "customer_id": order_data.customer_id,
-            "customer_name": order_data.customer_name,
-            "customer_email": order_data.customer_email,
-            "customer_phone": order_data.customer_phone,
-            "shipping_address": order_data.shipping_address,
-            "shipping_city": order_data.shipping_city,
-            "shipping_postal": order_data.shipping_postal,
-            "shipping_country": order_data.shipping_country,
-            "items": [item.model_dump() for item in order_data.items],
-            "item_details": item_details,
-            "notes": order_data.notes,
-            "subtotal": subtotal,
-            "shipping_cost": shipping_cost,
-            "discount_amount": discount_amount,
-            "total_amount": total,
-            "coupon_code": order_data.coupon_code,
-            "coupon_details": coupon_details
-        }
-        
-        # Create Stripe checkout
+
+        session_token = secrets.token_urlsafe(32)
+        pending_session = DBPendingCheckoutSession(
+            id=str(uuid.uuid4()),
+            session_token=session_token,
+            customer_id=order_data.customer_id,
+            customer_name=order_data.customer_name,
+            customer_email=order_data.customer_email,
+            customer_phone=order_data.customer_phone,
+            shipping_address=order_data.shipping_address,
+            shipping_city=order_data.shipping_city,
+            shipping_postal=order_data.shipping_postal,
+            shipping_country=order_data.shipping_country,
+            items=[item.model_dump() for item in order_data.items],
+            item_details=item_details,
+            notes=order_data.notes,
+            subtotal=subtotal,
+            shipping_cost=shipping_cost,
+            discount_amount=discount_amount,
+            total_amount=total,
+            coupon_code=order_data.coupon_code,
+            coupon_details=coupon_details,
+            is_demo=STRIPE_DEMO_MODE,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        session.add(pending_session)
+        await session.commit()
+
         if STRIPE_DEMO_MODE:
-            # Demo mode - Bestellung wird erst bei /payment/verify erstellt
-            import base64
-            import json
-            # Encode order data in URL (für Demo Mode)
-            encoded_data = base64.urlsafe_b64encode(json.dumps(order_metadata).encode()).decode()
-            checkout_url = f"{order_data.origin_url}/payment/success?pending_order={encoded_data}&demo=true"
-            
+            checkout_url = f"{order_data.origin_url}/checkout/demo?token={session_token}"
             return {
-                "order_id": pending_order_id,
+                "session_token": session_token,
                 "checkout_url": checkout_url,
                 "total_amount": total,
                 "demo_mode": True
             }
         else:
-            # Real Stripe checkout - Order wird erst nach Zahlung erstellt!
             try:
                 checkout = StripeCheckout(api_key=STRIPE_API_KEY)
-                
+
                 line_items = []
                 for detail in item_details:
                     line_items.append({
@@ -1554,7 +1547,17 @@ async def create_order_with_checkout(request: Request, order_data: CreateOrderRe
                         },
                         "quantity": detail['quantity']
                     })
-                
+
+                if discount_amount > 0:
+                    line_items.append({
+                        "price_data": {
+                            "currency": "eur",
+                            "product_data": {"name": f"Rabatt ({order_data.coupon_code})"},
+                            "unit_amount": -int(discount_amount * 100)
+                        },
+                        "quantity": 1
+                    })
+
                 if shipping_cost > 0:
                     line_items.append({
                         "price_data": {
@@ -1564,251 +1567,341 @@ async def create_order_with_checkout(request: Request, order_data: CreateOrderRe
                         },
                         "quantity": 1
                     })
-                
-                # Speichere alle Order-Daten in Stripe metadata
-                import json
+
                 checkout_request = CheckoutSessionRequest(
                     line_items=line_items,
                     success_url=f"{order_data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
-                    cancel_url=f"{order_data.origin_url}/cart",
+                    cancel_url=f"{order_data.origin_url}/payment/cancel",
                     mode="payment",
                     metadata={
-                        "pending_order_id": pending_order_id,
-                        "customer_id": order_data.customer_id or "",
-                        "customer_name": order_data.customer_name,
-                        "customer_email": order_data.customer_email,
-                        "customer_phone": order_data.customer_phone or "",
-                        "shipping_address": order_data.shipping_address,
-                        "shipping_city": order_data.shipping_city,
-                        "shipping_postal": order_data.shipping_postal,
-                        "shipping_country": order_data.shipping_country,
-                        "notes": order_data.notes or "",
-                        "coupon_code": order_data.coupon_code or "",
-                        "subtotal": str(subtotal),
-                        "shipping_cost": str(shipping_cost),
-                        "discount_amount": str(discount_amount),
-                        "total_amount": str(total),
-                        "items_json": json.dumps([item.model_dump() for item in order_data.items]),
-                        "item_details_json": json.dumps(item_details)
+                        "checkout_token": session_token
                     }
                 )
-                
+
                 stripe_session = await checkout.create_session(checkout_request)
-                
+
+                pending_session.stripe_session_id = stripe_session.id
+                await session.commit()
+
                 return {
-                    "order_id": pending_order_id,
+                    "session_token": session_token,
                     "checkout_url": stripe_session.url,
-                    "total_amount": total
+                    "total_amount": total,
+                    "demo_mode": False
                 }
-                
+
             except Exception as e:
                 logger.error(f"Stripe error: {e}")
                 raise HTTPException(status_code=500, detail="Payment processing error")
 
+@api_router.get("/checkout/session/{token}")
+async def get_checkout_session(token: str):
+    """Get checkout session details for frontend display"""
+    async with async_session() as session:
+        result = await session.execute(
+            select(DBPendingCheckoutSession).where(
+                DBPendingCheckoutSession.session_token == token,
+                DBPendingCheckoutSession.status == 'pending'
+            )
+        )
+        checkout_session = result.scalar_one_or_none()
+
+        if not checkout_session:
+            raise HTTPException(status_code=404, detail="Checkout session not found")
+
+        if checkout_session.expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=410, detail="Checkout session expired")
+
+        return {
+            "customer_name": checkout_session.customer_name,
+            "customer_email": checkout_session.customer_email,
+            "shipping_address": checkout_session.shipping_address,
+            "shipping_city": checkout_session.shipping_city,
+            "shipping_postal": checkout_session.shipping_postal,
+            "shipping_country": checkout_session.shipping_country,
+            "items": checkout_session.item_details,
+            "subtotal": checkout_session.subtotal,
+            "shipping_cost": checkout_session.shipping_cost,
+            "discount_amount": checkout_session.discount_amount,
+            "total_amount": checkout_session.total_amount,
+            "coupon_code": checkout_session.coupon_code,
+            "is_demo": checkout_session.is_demo
+        }
+
+@api_router.post("/checkout/demo/complete")
+async def complete_demo_checkout(
+    token: str,
+    card_number: str,
+    background_tasks: BackgroundTasks
+):
+    """Complete demo checkout - validates test card and creates order"""
+    valid_test_cards = [
+        "4242424242424242",
+        "4000056655665556",
+        "5555555555554444",
+        "2223003122003222",
+        "378282246310005",
+        "6011111111111117"
+    ]
+
+    clean_card = card_number.replace(" ", "").replace("-", "")
+
+    if clean_card not in valid_test_cards:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid test card. Use 4242 4242 4242 4242 for testing."
+        )
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(DBPendingCheckoutSession).where(
+                DBPendingCheckoutSession.session_token == token,
+                DBPendingCheckoutSession.status == 'pending',
+                DBPendingCheckoutSession.is_demo == True
+            )
+        )
+        checkout_session = result.scalar_one_or_none()
+
+        if not checkout_session:
+            raise HTTPException(status_code=404, detail="Checkout session not found or already completed")
+
+        if checkout_session.expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=410, detail="Checkout session expired")
+
+        tracking_number = generate_tracking_number()
+        order_id = str(uuid.uuid4())
+
+        order = DBOrder(
+            id=order_id,
+            tracking_number=tracking_number,
+            customer_id=checkout_session.customer_id,
+            customer_name=checkout_session.customer_name,
+            customer_email=checkout_session.customer_email,
+            customer_phone=checkout_session.customer_phone,
+            shipping_address=checkout_session.shipping_address,
+            shipping_city=checkout_session.shipping_city,
+            shipping_postal=checkout_session.shipping_postal,
+            shipping_country=checkout_session.shipping_country,
+            items=checkout_session.items,
+            item_details=checkout_session.item_details,
+            notes=checkout_session.notes,
+            subtotal=checkout_session.subtotal,
+            shipping_cost=checkout_session.shipping_cost,
+            discount_amount=checkout_session.discount_amount,
+            total_amount=checkout_session.total_amount,
+            coupon_code=checkout_session.coupon_code,
+            coupon_details=checkout_session.coupon_details,
+            status='paid',
+            payment_status='paid',
+            is_new=True
+        )
+        session.add(order)
+
+        for item in checkout_session.items:
+            result = await session.execute(
+                select(DBProduct).where(DBProduct.id == item['product_id'])
+            )
+            product = result.scalar_one_or_none()
+            if product:
+                product.stock = max(0, product.stock - item['quantity'])
+                product.sold_count = (product.sold_count or 0) + item['quantity']
+
+        if checkout_session.coupon_code:
+            result = await session.execute(
+                select(DBCoupon).where(func.upper(DBCoupon.code) == checkout_session.coupon_code.upper())
+            )
+            coupon = result.scalar_one_or_none()
+            if coupon:
+                coupon.uses_count = (coupon.uses_count or 0) + 1
+
+        checkout_session.status = 'completed'
+        checkout_session.completed_at = datetime.now(timezone.utc)
+
+        transaction = DBPaymentTransaction(
+            id=str(uuid.uuid4()),
+            order_id=order_id,
+            session_id=f"demo_{token}",
+            amount=checkout_session.total_amount,
+            currency='eur',
+            payment_status='paid',
+            payment_metadata={"demo": True, "card_last4": clean_card[-4:]}
+        )
+        session.add(transaction)
+
+        await session.commit()
+
+        background_tasks.add_task(
+            send_order_confirmation,
+            order.customer_email,
+            order.customer_name.split()[0] if order.customer_name else "Kunde",
+            db_to_dict(order)
+        )
+        background_tasks.add_task(notify_new_order, db_to_dict(order))
+
+        return {
+            "success": True,
+            "order": db_to_dict(order),
+            "demo_mode": True
+        }
+
 @api_router.get("/payment/verify")
 @api_router.get("/orders/verify-payment")
 async def verify_payment(
-    session_id: Optional[str] = None, 
-    pending_order: Optional[str] = None,  # Base64 encoded order data for demo
-    demo: Optional[str] = None, 
+    session_id: Optional[str] = None,
     background_tasks: BackgroundTasks = None
 ):
-    """Verify payment and CREATE order - Order wird nur bei erfolgreicher Zahlung erstellt!"""
+    """Verify Stripe payment and create order - SECURE: only creates order after Stripe confirms payment"""
     import json
-    import base64
-    
+
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Missing session_id")
+
     async with async_session() as session:
-        # DEMO MODE - Bestellung aus encoded data erstellen
-        if demo == "true" and pending_order:
-            try:
-                # Decode order data
-                order_data = json.loads(base64.urlsafe_b64decode(pending_order.encode()).decode())
-                
-                # Create the order NOW (after "payment")
-                order_id = order_data.get('pending_order_id', str(uuid.uuid4()))
-                tracking_number = generate_tracking_number()
-                
-                order = DBOrder(
-                    id=order_id,
-                    tracking_number=tracking_number,
-                    customer_id=order_data.get('customer_id'),
-                    customer_name=order_data['customer_name'],
-                    customer_email=order_data['customer_email'],
-                    customer_phone=order_data.get('customer_phone'),
-                    shipping_address=order_data['shipping_address'],
-                    shipping_city=order_data['shipping_city'],
-                    shipping_postal=order_data['shipping_postal'],
-                    shipping_country=order_data['shipping_country'],
-                    items=order_data['items'],
-                    item_details=order_data['item_details'],
-                    notes=order_data.get('notes'),
-                    subtotal=float(order_data['subtotal']),
-                    shipping_cost=float(order_data['shipping_cost']),
-                    discount_amount=float(order_data.get('discount_amount', 0)),
-                    total_amount=float(order_data['total_amount']),
-                    coupon_code=order_data.get('coupon_code'),
-                    coupon_details=order_data.get('coupon_details'),
-                    status='paid',  # Direkt als bezahlt markieren!
-                    payment_status='paid',
-                    is_new=True
-                )
-                session.add(order)
-                
-                # Update stock
-                for item in order_data['items']:
-                    result = await session.execute(
-                        select(DBProduct).where(DBProduct.id == item['product_id'])
-                    )
-                    product = result.scalar_one_or_none()
-                    if product:
-                        product.stock = max(0, product.stock - item['quantity'])
-                        product.sold_count = (product.sold_count or 0) + item['quantity']
-                
-                # Update coupon usage
-                if order_data.get('coupon_code'):
-                    result = await session.execute(
-                        select(DBCoupon).where(func.upper(DBCoupon.code) == order_data['coupon_code'].upper())
-                    )
-                    coupon = result.scalar_one_or_none()
-                    if coupon:
-                        coupon.uses_count = (coupon.uses_count or 0) + 1
-                
-                await session.commit()
-                
-                # Send notifications
-                if background_tasks:
-                    background_tasks.add_task(
-                        send_order_confirmation,
-                        order.customer_email,
-                        order.customer_name.split()[0] if order.customer_name else "Kunde",
-                        db_to_dict(order)
-                    )
-                    background_tasks.add_task(
-                        notify_new_order,
-                        db_to_dict(order)
-                    )
-                
+        existing_order = await session.execute(
+            select(DBOrder).where(DBOrder.stripe_session_id == session_id)
+        )
+        existing = existing_order.scalar_one_or_none()
+        if existing:
+            return {
+                "success": True,
+                "order": db_to_dict(existing),
+                "already_processed": True
+            }
+
+        try:
+            checkout = StripeCheckout(api_key=STRIPE_API_KEY)
+            status = await checkout.get_session_status(session_id)
+
+            if status.status != "complete":
                 return {
-                    "success": True,
-                    "order": db_to_dict(order),
-                    "demo_mode": True
+                    "success": False,
+                    "status": status.status,
+                    "message": "Payment not completed"
                 }
-                
-            except Exception as e:
-                logger.error(f"Demo order creation error: {e}")
-                raise HTTPException(status_code=400, detail=f"Invalid order data: {str(e)}")
-        
-        # REAL STRIPE - Bestellung aus Stripe Session metadata erstellen
-        elif session_id:
-            try:
-                checkout = StripeCheckout(api_key=STRIPE_API_KEY)
-                status = await checkout.get_session_status(session_id)
-                
-                if status.status == "complete":
-                    # Get metadata from Stripe session
-                    import stripe
-                    stripe.api_key = STRIPE_API_KEY
-                    stripe_session = stripe.checkout.Session.retrieve(session_id)
-                    metadata = stripe_session.metadata
-                    
-                    if not metadata:
-                        raise HTTPException(status_code=400, detail="No order data in session")
-                    
-                    # Create the order NOW
-                    order_id = metadata.get('pending_order_id', str(uuid.uuid4()))
-                    tracking_number = generate_tracking_number()
-                    
-                    items = json.loads(metadata.get('items_json', '[]'))
-                    item_details = json.loads(metadata.get('item_details_json', '[]'))
-                    
-                    order = DBOrder(
-                        id=order_id,
-                        tracking_number=tracking_number,
-                        stripe_session_id=session_id,
-                        customer_id=metadata.get('customer_id') or None,
-                        customer_name=metadata.get('customer_name', ''),
-                        customer_email=metadata.get('customer_email', ''),
-                        customer_phone=metadata.get('customer_phone') or None,
-                        shipping_address=metadata.get('shipping_address', ''),
-                        shipping_city=metadata.get('shipping_city', ''),
-                        shipping_postal=metadata.get('shipping_postal', ''),
-                        shipping_country=metadata.get('shipping_country', ''),
-                        items=items,
-                        item_details=item_details,
-                        notes=metadata.get('notes') or None,
-                        subtotal=float(metadata.get('subtotal', 0)),
-                        shipping_cost=float(metadata.get('shipping_cost', 0)),
-                        discount_amount=float(metadata.get('discount_amount', 0)),
-                        total_amount=float(metadata.get('total_amount', 0)),
-                        coupon_code=metadata.get('coupon_code') or None,
-                        status='paid',
-                        payment_status='paid',
-                        is_new=True
-                    )
-                    session.add(order)
-                    
-                    # Update stock
-                    for item in items:
-                        result = await session.execute(
-                            select(DBProduct).where(DBProduct.id == item['product_id'])
-                        )
-                        product = result.scalar_one_or_none()
-                        if product:
-                            product.stock = max(0, product.stock - item['quantity'])
-                            product.sold_count = (product.sold_count or 0) + item['quantity']
-                    
-                    # Update coupon usage
-                    if metadata.get('coupon_code'):
-                        result = await session.execute(
-                            select(DBCoupon).where(func.upper(DBCoupon.code) == metadata['coupon_code'].upper())
-                        )
-                        coupon = result.scalar_one_or_none()
-                        if coupon:
-                            coupon.uses_count = (coupon.uses_count or 0) + 1
-                    
-                    # Record payment transaction
-                    transaction = DBPaymentTransaction(
-                        id=str(uuid.uuid4()),
-                        order_id=order_id,
-                        session_id=session_id,
-                        amount=float(metadata.get('total_amount', 0)),
-                        currency='eur',
-                        payment_status='paid'
-                    )
-                    session.add(transaction)
-                    
-                    await session.commit()
-                    
-                    # Send notifications
-                    if background_tasks:
-                        background_tasks.add_task(
-                            send_order_confirmation,
-                            order.customer_email,
-                            order.customer_name.split()[0] if order.customer_name else "Kunde",
-                            db_to_dict(order)
-                        )
-                        background_tasks.add_task(
-                            notify_new_order,
-                            db_to_dict(order)
-                        )
-                    
-                    return {
-                        "success": True,
-                        "order": db_to_dict(order)
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "status": status.status,
-                        "message": "Payment not completed"
-                    }
-                    
-            except Exception as e:
-                logger.error(f"Payment verification error: {e}")
-                raise HTTPException(status_code=500, detail=f"Payment verification failed: {str(e)}")
-        
-        else:
-            raise HTTPException(status_code=400, detail="Missing session_id or pending_order data")
+
+            import stripe
+            stripe.api_key = STRIPE_API_KEY
+            stripe_session = stripe.checkout.Session.retrieve(session_id)
+            metadata = stripe_session.metadata
+
+            if not metadata or not metadata.get('checkout_token'):
+                raise HTTPException(status_code=400, detail="Invalid session metadata")
+
+            checkout_token = metadata['checkout_token']
+
+            result = await session.execute(
+                select(DBPendingCheckoutSession).where(
+                    DBPendingCheckoutSession.session_token == checkout_token
+                )
+            )
+            checkout_session = result.scalar_one_or_none()
+
+            if not checkout_session:
+                raise HTTPException(status_code=404, detail="Checkout session not found")
+
+            if checkout_session.status == 'completed':
+                result = await session.execute(
+                    select(DBOrder).where(DBOrder.stripe_session_id == session_id)
+                )
+                order = result.scalar_one_or_none()
+                if order:
+                    return {"success": True, "order": db_to_dict(order)}
+                raise HTTPException(status_code=400, detail="Session already processed but order not found")
+
+            tracking_number = generate_tracking_number()
+            order_id = str(uuid.uuid4())
+
+            order = DBOrder(
+                id=order_id,
+                tracking_number=tracking_number,
+                stripe_session_id=session_id,
+                customer_id=checkout_session.customer_id,
+                customer_name=checkout_session.customer_name,
+                customer_email=checkout_session.customer_email,
+                customer_phone=checkout_session.customer_phone,
+                shipping_address=checkout_session.shipping_address,
+                shipping_city=checkout_session.shipping_city,
+                shipping_postal=checkout_session.shipping_postal,
+                shipping_country=checkout_session.shipping_country,
+                items=checkout_session.items,
+                item_details=checkout_session.item_details,
+                notes=checkout_session.notes,
+                subtotal=checkout_session.subtotal,
+                shipping_cost=checkout_session.shipping_cost,
+                discount_amount=checkout_session.discount_amount,
+                total_amount=checkout_session.total_amount,
+                coupon_code=checkout_session.coupon_code,
+                coupon_details=checkout_session.coupon_details,
+                status='paid',
+                payment_status='paid',
+                is_new=True
+            )
+            session.add(order)
+
+            for item in checkout_session.items:
+                result = await session.execute(
+                    select(DBProduct).where(DBProduct.id == item['product_id'])
+                )
+                product = result.scalar_one_or_none()
+                if product:
+                    product.stock = max(0, product.stock - item['quantity'])
+                    product.sold_count = (product.sold_count or 0) + item['quantity']
+
+            if checkout_session.coupon_code:
+                result = await session.execute(
+                    select(DBCoupon).where(func.upper(DBCoupon.code) == checkout_session.coupon_code.upper())
+                )
+                coupon = result.scalar_one_or_none()
+                if coupon:
+                    coupon.uses_count = (coupon.uses_count or 0) + 1
+
+            transaction = DBPaymentTransaction(
+                id=str(uuid.uuid4()),
+                order_id=order_id,
+                session_id=session_id,
+                amount=checkout_session.total_amount,
+                currency='eur',
+                payment_status='paid'
+            )
+            session.add(transaction)
+
+            checkout_session.status = 'completed'
+            checkout_session.completed_at = datetime.now(timezone.utc)
+
+            await session.commit()
+
+            if background_tasks:
+                background_tasks.add_task(
+                    send_order_confirmation,
+                    order.customer_email,
+                    order.customer_name.split()[0] if order.customer_name else "Kunde",
+                    db_to_dict(order)
+                )
+                background_tasks.add_task(notify_new_order, db_to_dict(order))
+
+            return {
+                "success": True,
+                "order": db_to_dict(order)
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Payment verification error: {e}")
+            raise HTTPException(status_code=500, detail=f"Payment verification failed: {str(e)}")
+
+@api_router.get("/checkout/status")
+async def get_checkout_status():
+    """Get checkout configuration status"""
+    return {
+        "demo_mode": STRIPE_DEMO_MODE,
+        "stripe_configured": not STRIPE_DEMO_MODE,
+        "test_cards": [
+            {"number": "4242 4242 4242 4242", "brand": "Visa", "description": "Successful payment"},
+            {"number": "4000 0566 5566 5556", "brand": "Visa (debit)", "description": "Successful payment"},
+            {"number": "5555 5555 5555 4444", "brand": "Mastercard", "description": "Successful payment"}
+        ] if STRIPE_DEMO_MODE else []
+    }
 
 @api_router.get("/orders/{order_id}")
 async def get_order(order_id: str):

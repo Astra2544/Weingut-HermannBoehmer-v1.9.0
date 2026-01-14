@@ -35,7 +35,7 @@ import ImprintPage from "./pages/ImprintPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import PaymentCancelPage from "./pages/PaymentCancelPage";
-import PaymentDemoPage from "./pages/PaymentDemoPage";
+import CheckoutDemoPage from "./pages/CheckoutDemoPage";
 import LocationsPage from "./pages/LocationsPage";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
 import NewsletterUnsubscribePage from "./pages/NewsletterUnsubscribePage";
@@ -142,7 +142,7 @@ function AppContent() {
                         <Route path="/imprint" element={<ImprintPage />} />
                         <Route path="/payment/success" element={<PaymentSuccessPage />} />
                         <Route path="/payment/cancel" element={<PaymentCancelPage />} />
-                        <Route path="/payment/demo" element={<PaymentDemoPage />} />
+                        <Route path="/checkout/demo" element={<CheckoutDemoPage />} />
                         <Route path="/newsletter/unsubscribe" element={<NewsletterUnsubscribePage />} />
                         <Route path="*" element={<NotFoundPage />} />
                       </Routes>

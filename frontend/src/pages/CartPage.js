@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Trash2, Minus, Plus, ShoppingBag, ArrowRight, ArrowLeft, 
+import {
+  Trash2, Minus, Plus, ShoppingBag, ArrowRight, ArrowLeft,
   Truck, Check, User, MapPin, CreditCard, AlertCircle, Lock, Eye, EyeOff, LogIn,
-  Tag, X, Loader2
+  Tag, X, Loader2, AlertTriangle
 } from 'lucide-react';
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
@@ -42,6 +42,9 @@ export default function CartPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailExists, setEmailExists] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
+
+  // Test mode indicator
+  const [isTestMode, setIsTestMode] = useState(false);
   
   const [form, setForm] = useState({
     customer_name: '',
@@ -94,7 +97,7 @@ export default function CartPage() {
     { id: 3, name: language === 'de' ? 'Zahlung' : 'Payment', icon: CreditCard },
   ];
 
-  // Fetch shipping rates on mount
+  // Fetch shipping rates and checkout status on mount
   useEffect(() => {
     const fetchShippingRates = async () => {
       try {
@@ -104,7 +107,18 @@ export default function CartPage() {
         console.error('Error fetching shipping rates:', error);
       }
     };
+
+    const checkTestMode = async () => {
+      try {
+        const res = await axios.get(`${API}/checkout/status`);
+        setIsTestMode(res.data.demo_mode);
+      } catch (error) {
+        console.error('Error checking checkout status:', error);
+      }
+    };
+
     fetchShippingRates();
+    checkTestMode();
   }, []);
 
   // Calculate shipping based on selected country
@@ -1138,6 +1152,26 @@ export default function CartPage() {
                       </p>
                     </div>
                     
+                    {/* Test Mode Banner */}
+                    {isTestMode && (
+                      <div className="bg-amber-50 border border-amber-300 p-4 mb-6 rounded-lg flex items-start gap-3">
+                        <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-amber-800">
+                            {language === 'de' ? 'Testmodus aktiv' : 'Test Mode Active'}
+                          </p>
+                          <p className="text-sm text-amber-700 mt-1">
+                            {language === 'de'
+                              ? 'Sie können den Checkout mit einer Testkarte abschließen. Keine echte Zahlung wird verarbeitet.'
+                              : 'You can complete checkout using a test card. No real payment will be processed.'}
+                          </p>
+                          <p className="text-xs text-amber-600 mt-2 font-mono">
+                            {language === 'de' ? 'Testkarte:' : 'Test card:'} 4242 4242 4242 4242
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Payment Method Info */}
                     <div className="border border-[#E5E0D8] p-4 mb-6">
                       <div className="flex items-center gap-3 mb-3">
@@ -1147,9 +1181,13 @@ export default function CartPage() {
                         </span>
                       </div>
                       <p className="text-sm text-[#5C5852]">
-                        {language === 'de' 
-                          ? 'Sie werden zur sicheren Stripe-Zahlungsseite weitergeleitet. Wir akzeptieren Kreditkarten, Debitkarten und weitere Zahlungsmethoden.' 
-                          : 'You will be redirected to the secure Stripe payment page. We accept credit cards, debit cards and other payment methods.'}
+                        {language === 'de'
+                          ? (isTestMode
+                              ? 'Sie werden zu einer sicheren Demo-Zahlungsseite weitergeleitet.'
+                              : 'Sie werden zur sicheren Stripe-Zahlungsseite weitergeleitet. Wir akzeptieren Kreditkarten, Debitkarten und weitere Zahlungsmethoden.')
+                          : (isTestMode
+                              ? 'You will be redirected to a secure demo payment page.'
+                              : 'You will be redirected to the secure Stripe payment page. We accept credit cards, debit cards and other payment methods.')}
                       </p>
                       <div className="flex gap-2 mt-3">
                         <div className="px-2 py-1 bg-[#F2EFE9] text-xs text-[#5C5852]">Visa</div>
